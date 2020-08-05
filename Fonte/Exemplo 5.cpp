@@ -1,5 +1,3 @@
-#include <Arduino.h>
-
 #define LED_VERMELHO 12
 #define LED_VERDE 11
 #define LED_AMARELO 10
