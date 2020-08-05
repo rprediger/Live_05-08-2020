@@ -8,7 +8,10 @@
 #define BOTAO_1 7
 #define BOTAO_2 6
 
-// Exemplo 5 função de indicação pelos LED's atravez de um contador
+#define PIN_SENSOR_ANALOGICO A0
+#define NUM_DADOS_LIDOS 7
+
+// Exemplo 6 ler um sensor, fazer a media movel e mostrar nos LED´s
 struct Botao
 {
     int Pinagem;
@@ -17,8 +20,16 @@ struct Botao
     bool Borda_Descida; //Identifica a ocorrencia de uma borda de descida
 };
 
+struct Vetor_Circular
+{
+    int Dados[NUM_DADOS_LIDOS];
+    int P_Prox_Dado;
+};
+
 // Variaveis Globais
 struct Botao Btn_1, Btn_2;
+struct Vetor_Circular Buffer_Dados;
+
 int Contador;
 
 // Funções Auxiliares
@@ -44,6 +55,30 @@ struct Botao Atualiza_Estado_Botao(struct Botao Btn)
     return Btn;
 }
 
+// função que adiciona os dados no buffer
+struct Vetor_Circular Adicionar_Dado_Buffer_Circular(Vetor_Circular Buffer, int Dado)
+{
+    Buffer.Dados[Buffer.P_Prox_Dado] = Dado;
+    Buffer.P_Prox_Dado++;
+    if (Buffer.P_Prox_Dado >= NUM_DADOS_LIDOS)
+    {
+        Buffer.P_Prox_Dado = 0;
+    }
+    return Buffer;
+}
+
+// Função que calcula a média movel
+int Media_Movel_Buffer_Circular(Vetor_Circular Buffer)
+{
+    int Acumulador = 0;
+    for (int contador = 0; contador < NUM_DADOS_LIDOS; contador++)
+    {
+        Acumulador += Buffer.Dados[contador];
+    }
+    return (Acumulador / NUM_DADOS_LIDOS);
+}
+
+// Função que manipula os LED's
 void Indicador_LEDs(int Valor)
 {
     switch (Valor)
@@ -117,29 +152,48 @@ void setup()
 
     // Inicializa as demais variaveis
     Contador = 0;
+    Buffer_Dados.P_Prox_Dado = 0;
 
     Serial.println("Fim de inicializacao");
 }
 
 void loop()
 {
-    // Exemplo 5
+    // Atualiza os botoes
     Btn_1 = Atualiza_Estado_Botao(Btn_1);
     Btn_2 = Atualiza_Estado_Botao(Btn_2);
 
+    // Faz uma nova leitura e adiciona no buffer
     if (Btn_1.Borda_Descida == true)
     {
-        Contador++;
-        Serial.print("Contador: ");
-        Serial.println(Contador);
-    }
-    
-    if (Btn_2.Borda_Descida == true)
-    {
-        Contador--;
-        Serial.print("Contador: ");
-        Serial.println(Contador);
+        int Leitura = analogRead(PIN_SENSOR_ANALOGICO);
+        Buffer_Dados = Adicionar_Dado_Buffer_Circular(Buffer_Dados, Leitura);
+        Serial.print("Valor sensor: ");
+        Serial.println(Leitura);
     }
 
-    Indicador_LEDs(Contador);
+    // Atualiza a saida com as ultimas leituras
+    if (Btn_2.Borda_Descida == true)
+    {
+        // Calcula a media movel
+        int Media_Movel = Media_Movel_Buffer_Circular(Buffer_Dados);
+        // Calcula a tensão aproximada
+        int Tensao_Aproximada = map(Media_Movel, 0, 1023, 0, 5);
+        // Indica a tensão atravez dos LED´s
+        Indicador_LEDs(Tensao_Aproximada);
+
+        // Apresenta os dados para o usuario
+        Serial.println("Dados no Buffer: ");
+        for (int contador = 0; contador < NUM_DADOS_LIDOS; contador++)
+        {
+            Serial.print("[");
+            Serial.print(Buffer_Dados.Dados[contador]);
+            Serial.print("] ");
+        }
+        Serial.println();
+        Serial.print("Media Movel: ");
+        Serial.println(Media_Movel);
+        Serial.print("Tensao Aproximada: ");
+        Serial.println(Tensao_Aproximada);
+    }
 }
